@@ -1,25 +1,24 @@
+import { RowValues } from "exceljs";
+import {entryJson, specMatchData, pageRes, TrackmaniaIO} from './TrackmaniaIOInterface';
+import {Config, ConfigObject} from './Config/Config'
+
+
 const fetch = require('node-fetch')
+const ExcelJS = require('exceljs')
+const fs = require('fs')
 
-export class TM_IO_Wrapper{
+export class TM_IO_Wrapper implements TrackmaniaIO{
 
-    maxPage: number;
+    config: ConfigObject;
 
-    headers = new fetch.Headers({
-        "Accept"       : "application/json",
-        "Content-Type" : "application/json",
-        "User-Agent"   :  "da69d118-512e-45e8-b8ac-ecdcc2404e94"
-    });
-    method = "GET"
-    body = null
-    playerName = "MrHankey42"        
-    playerID = "da69d118-512e-45e8-b8ac-ecdcc2404e94"
-    options = {
-        headers: this.headers,
-        method: this.method,
-        body: this.body
-    }
-    urlToMap = ["https://prod.trackmania.core.nadeo.online/storageObjects/ebb9c74a-5387-446e-ba6c-c372c854985e",   //1 
-                "",     //2
+    private maxPage: number = 0;
+    private headers
+    private options
+
+
+    //TODO generate it according to current campaing
+    urlToMap = ["https://prod.trackmania.core.nadeo.online/storageObjects/ebb9c74a-5387-446e-ba6c-c372c854985e",     //1 
+                "https://prod.trackmania.core.nadeo.online/storageObjects/5440301f-467b-49b9-8e8e-ba67f5ef194a",     //2
                 "https://prod.trackmania.core.nadeo.online/storageObjects/66abcddf-1d76-4fc0-92d5-5042125d19d3",     //3
                 "https://prod.trackmania.core.nadeo.online/storageObjects/88d9a585-2f9b-4ac0-aab1-7b5df68c9021",     //4
                 "https://prod.trackmania.core.nadeo.online/storageObjects/69754627-5f47-4051-911a-89843635bf6b",     //5
@@ -40,21 +39,34 @@ export class TM_IO_Wrapper{
                 "https://prod.trackmania.core.nadeo.online/storageObjects/70a04b67-02f1-40ca-aa82-3cd42cce2e68",     //20
                 "https://prod.trackmania.core.nadeo.online/storageObjects/0cf3c082-a780-4d3f-8306-e40358cc9e61",     //21
                 "https://prod.trackmania.core.nadeo.online/storageObjects/82782881-f8ea-4664-9218-849643ef590a",     //22
-                "https://prod.trackmania.core.nadeo.online/storageObjects/0cf3c082-a780-4d3f-8306-e40358cc9e61",     //23
+                "https://prod.trackmania.core.nadeo.online/storageObjects/6fecb0a7-361f-4de8-9ca5-74cfd489ab72",     //23
                 "https://prod.trackmania.core.nadeo.online/storageObjects/7b14beca-dd12-4577-80df-fefdc550a2e8",     //24
                 "https://prod.trackmania.core.nadeo.online/storageObjects/eefbe8b3-126f-4c80-a938-fe4bff2671df"]     //25
     
-    async getNextPage(): Promise<void> {
-        
+
+                
+    //set maxNewPage and oldest new entry for pull all new matches
+    async init():Promise<void> {
+        this.config = Config.getConfig() as ConfigObject;
+        this.headers = new fetch.Headers({
+            "Accept"       : "application/json",
+            "Content-Type" : "application/json",
+            "User-Agent"   :  this.config.playerID
+        });
+        this.options = {
+            headers: this.headers,
+            method: "GET",
+            body: null
+        }
     }
-    
+
+                
     async getPage(page: number): Promise<pageRes> {
         
-        
-
-        const url_get_Match_page = "https://trackmania.io/api/player/" + this.playerID + "/matches/2/" + page
+        const url_get_Match_page = "https://trackmania.io/api/player/" + this.config.playerID + "/matches/2/" + page
  
         console.log("FETCH: get page " + page)
+        console.log(url_get_Match_page)
         const response = new Promise<pageRes> ((resolve, reject) => {
             fetch(url_get_Match_page, this.options).then(async (res)=> {
                 if(res.status != 200) {
@@ -69,27 +81,24 @@ export class TM_IO_Wrapper{
     }
 
 
-
-    //set config
-    //set max Page need for full pull
-    //set maxNewPage and oldest new entry for pull all new matches
-    async init():Promise<void> {
-
+    async getFull():Promise<entryJson[]>{
+        let result = [] as  entryJson[]
+        for (let i = this.maxPage; i >= 0; i--){
+            if (i != this.maxPage) {
+                await delay(60000)
+            }
+            try {
+                let page = await this.getPage(i)
+                let entries = await this.pageToJson(page)
+                result = result.concat(entries)
+            }
+            catch(e){
+                console.log(e.message);
+            }
+        }
+        return result
     }
 
-    //async getFull():Promise<entryJson[]>{
-    //    let result: entryJson[]
-     //   for (let i = this.maxPage; i >= 0; i--){
-      //      try {
-       //         let page = await this.getPage(i)
-        //    }
-        //    catch(e){
-        //        console.log({page: e.message});
-        //    }
-
-
-//        }
-//    }
 
     async getMatchInfo(matchId: string): Promise<specMatchData>{
 
@@ -98,7 +107,7 @@ export class TM_IO_Wrapper{
         return new Promise<specMatchData>((resolve, reject) => {
             fetch(url_get_Match_info, this.options).then(res => {
                 if(res.status == 500) {
-                    let matchData = this.returnEmptySpecMatchData()
+                    let matchData = undefined
                     resolve(matchData)
                 }
 
@@ -113,6 +122,7 @@ export class TM_IO_Wrapper{
         
     }
 
+
     getMapNumber(url: string): number {
         let mapNumber = 26
         for(let k = 0; k < this.urlToMap.length; k++) {
@@ -123,14 +133,16 @@ export class TM_IO_Wrapper{
         return mapNumber
     }
 
+
     getPositioninPlayers(match: specMatchData): number{
         let players = match.players
         for (let i = 0; i < players.length; i++){
-            if (players[i].player.name == this.playerName) {
+            if (players[i].player.name == this.config.playerName) {
                 return i
             }
         } 
     }
+
 
     getTeamPos(match: specMatchData): number{
         let players = match.players
@@ -154,11 +166,13 @@ export class TM_IO_Wrapper{
         }
     }
 
+
     async pageToJson(page: pageRes): Promise<entryJson[]>{
         let result: entryJson[]
         result = []
         const matches = page.matches
         for(let i = matches.length - 1; i >= 0; i--) {
+            await delay(1000)
             let match: specMatchData
             try {
                 match = await this.getMatchInfo(matches[i].lid)
@@ -171,7 +185,7 @@ export class TM_IO_Wrapper{
                     teamPos: undefined,
                     totalTrophies: undefined
                 }
-                if(match.lid != undefined){
+                if(match != undefined){
                     entry = {
                         date : matches[i].starttime,
                         map : this.getMapNumber(match.maps[0].file),
@@ -188,7 +202,7 @@ export class TM_IO_Wrapper{
                     entry.totalTrophies= matches[i].afterscore
                     
                 }
-                result[i]= (entry)
+                result.push(entry)
             } catch (e) {
                 console.error({match: e.message})
             }
@@ -196,140 +210,67 @@ export class TM_IO_Wrapper{
         return result
     }
 
-    returnEmptySpecMatchData(): specMatchData{
-        return {id: undefined,
-            lid: undefined,
-            name: undefined,
-            group: undefined,
-            startdate: undefined,
-            enddate: undefined,
-            scoredirection: undefined,
-            participanttype: undefined,
-            scriptsettings: undefined,
-            maps: [
-                {
-                    file: undefined
-                }
-            ],
-            serverid: undefined,
-            serverjoinlink: undefined,
-            status: undefined,
-            players: undefined,
-            valid: undefined
+    
+    jsonToExcelArray(entries: entryJson[]): RowValues[]{
+        let result = []
+        entries.forEach(ent => {
+            let row = [[ent.date, ent.map, ent.newTrophies, ent.win, ent.mvp, ent.teamPos, ent.totalTrophies]]
+            result = result.concat(row)
+        })
+        return result
+    } 
+    
+
+    async resultToExcel(entries: entryJson[], filename: string){
+        if(exists(filename)){
+            
+            const workbook = new ExcelJS.Workbook()
+            
+            await workbook.xlsx.readFile(filename);
+            let worksheet = workbook.getWorksheet('My Sheet')
+            
+            let rows = this.jsonToExcelArray(entries)
+            worksheet.addRows(rows)
+            await workbook.xlsx.writeFile(filename)
+            
+        } else { 
+            //TODO generate excel file when it does not exist
         }
     }
+    
 }
-
-interface entryJson{
-    date : string,
-    map: number,
-    newTrophies: number,
-    win: boolean,
-    mvp: boolean,
-    teamPos: number,
-    totalTrophies: number,
-
-}
-
-interface scriptsettingsData{
-    name: string,
-    type: string,
-    value: number,
-}
-
-interface divisionData{
-    position: number,
-    rule: string,
-    minpoints: number,
-    maxpoints: number
-}
-
-interface mmData{
-    typename: string,
-    typeid: number,
-    accountid: string,
-    rank: number,
-    score: number,
-    progression: number,
-    division: divisionData,
-    division_next: divisionData
-}
-
-interface playerData {
-    name: string,
-    id: string,
-    zone: {
-        name: string,
-        flag: string,
-        parent:{
-            name: string,
-            flag: string,
-            parent: {
-                name: string,
-                flag: string,
-                parent: {
-                    name: string,
-                    flag: string
-                }
+function returnEmptySpecMatchData(): specMatchData{
+    return {id: undefined,
+        lid: undefined,
+        name: undefined,
+        group: undefined,
+        startdate: undefined,
+        enddate: undefined,
+        scoredirection: undefined,
+        participanttype: undefined,
+        scriptsettings: undefined,
+        maps: [
+            {
+                file: undefined
             }
-        }
+        ],
+        serverid: undefined,
+        serverjoinlink: undefined,
+        status: undefined,
+        players: undefined
     }
 }
 
-interface playersData{
-    player: playerData,
-    rank: number,
-    score: number,
-    team: number,
-    mvp: boolean,
-    matchmaking: mmData,
-    matchmakingpoints: {
-        valid: boolean,
-        before: number,
-        after: number
+function delay(ms: number) {
+    return new Promise( resolve => setTimeout(resolve, ms) );
+}
+
+async function exists (path) {  
+    try {
+      await fs.accessSync(path)
+      return true
+    } catch (e){
+      console.error(e.message)
+      return false
     }
 }
-
-interface specMatchData {
-    id: number,
-    lid: string,
-    name: string,
-    group: string,
-    startdate: string,
-    enddate: number,
-    scoredirection: string,
-    participanttype: string,
-    scriptsettings: scriptsettingsData[],
-    maps: [
-        {
-            file: string
-        }
-    ],
-    serverid: number,
-    serverjoinlink: string,
-    status: string,
-    players: playersData[],
-    valid: boolean
-}
-
-interface specMatchDataEx{
-    matchData: specMatchData,
-    valid: boolean,
-}
-
-interface matchData {
-    afterscore: number,
-    win: boolean,
-    leave: boolean,
-    mvp: boolean,
-    typename: string,
-    typeid: number,
-    lid: string,
-    starttime: string
-}
-
-interface pageRes {
-    page: number;
-    matches: matchData[]
-}
-
