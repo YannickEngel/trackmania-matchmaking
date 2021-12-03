@@ -261,27 +261,6 @@ export class TM_IO_Wrapper implements TrackmaniaIO{
     }
     
 }
-function returnEmptySpecMatchData(): specMatchData{
-    return {id: undefined,
-        lid: undefined,
-        name: undefined,
-        group: undefined,
-        startdate: undefined,
-        enddate: undefined,
-        scoredirection: undefined,
-        participanttype: undefined,
-        scriptsettings: undefined,
-        maps: [
-            {
-                file: undefined
-            }
-        ],
-        serverid: undefined,
-        serverjoinlink: undefined,
-        status: undefined,
-        players: undefined
-    }
-}
 
 function delay(ms: number) {
     return new Promise( resolve => setTimeout(resolve, ms) );
