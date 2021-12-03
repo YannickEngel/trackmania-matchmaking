@@ -79,7 +79,7 @@ export class TM_IO_Wrapper implements TrackmaniaIO{
             }
             this.maxPage++
         }
-        console.log(this.maxPage)
+        console.log("Max Page: " + this.maxPage)
     }
 
                 

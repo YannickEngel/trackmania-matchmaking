@@ -2,24 +2,39 @@ import { RowValues } from "exceljs";
 
 export interface TrackmaniaIO {
     
+    //get page with the given number 
     getPage(page: number): Promise<pageRes>;
 
+    /*
+    *initializes TM Wrapper
+    * - gets config
+    * - sets variables needed for api fetch
+    * - set maxPage
+    */
     init():Promise<void>
 
+    //gets all matches from all pages depending on maxPages
     getFull():Promise<entryJson[]>
 
+    //gets the info for one match if it is still availabe (not older than 2 weeks)
     getMatchInfo(matchId: string): Promise<specMatchData>
 
+    //get the map number according to the download link
     getMapNumber(url: string): number
 
+    //get the position of the player in a match
     getPositioninPlayers(match: specMatchData): number
 
+    //get the position of the player in his team 
     getTeamPos(match: specMatchData): number
 
+    //returns array with all important info of each match
     pageToJson(page: pageRes): Promise<entryJson[]>
 
+    //returns data fitting to write to excel
     jsonToExcelArray(entries: entryJson[]): RowValues[]
 
+    //writes the data to the excel file
     resultToExcel(entries: entryJson[], filename: string)
 
 }
