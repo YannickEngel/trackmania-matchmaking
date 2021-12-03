@@ -1,9 +1,10 @@
 import {TM_IO_Wrapper} from '../../src/TrackmainaIOWrapper'
 import {assert} from 'chai'
 import {describe, before, after, it} from 'mocha'
-import internal from 'stream'
 import { entryJson, specMatchData, playersData } from '../../src/TrackmaniaIOInterface'
+
 const fs = require('fs')
+const ExcelJS =require('exceljs')
 
 let tmWrapper: TM_IO_Wrapper
 let entries: entryJson[]
@@ -96,9 +97,24 @@ describe("Test TM Wrapper functions", function () {
             totalTrophies: 20
         }]
             
+        let workbook = new ExcelJS.Workbook()
+            
+        await workbook.xlsx.readFile("test.xlsx");
+        let worksheet = workbook.getWorksheet('My Sheet')
+        workbook.removeWorksheet(worksheet.id)
+        workbook.addWorksheet('My Sheet')
+        await workbook.xlsx.writeFile("test.xlsx")
         })
 
-    after("", () => {})
+    after("Remove Worksheet from excel", async () => {
+        let workbook = new ExcelJS.Workbook()
+            
+        await workbook.xlsx.readFile("test.xlsx");
+        let worksheet = workbook.getWorksheet('My Sheet')
+        workbook.removeWorksheet(worksheet.id)
+        workbook.addWorksheet('My Sheet')
+        await workbook.xlsx.writeFile("test.xlsx") 
+    })
 
     it("Test conversion from jsonResult to ExcelInputArray", function() {
 
@@ -106,6 +122,19 @@ describe("Test TM Wrapper functions", function () {
         let expected = [["123", 1, 1, true, false, 2, 10], ["234", 2, 2, false, true, 3 ,20]]
 
         assert.deepEqual(result, expected)
+    })
+
+    it("Test writing to a excel file", async function() {
+        await tmWrapper.resultToExcel(entries, "test.xlsx")
+
+        const workbook = new ExcelJS.Workbook()
+            
+        await workbook.xlsx.readFile("test.xlsx");
+        let worksheet = workbook.getWorksheet('My Sheet')
+
+        let row = await worksheet.lastRow
+
+       assert.deepEqual(row.values, [,"234", 2, 2, false, true, 3, 20])
     })
 
     
