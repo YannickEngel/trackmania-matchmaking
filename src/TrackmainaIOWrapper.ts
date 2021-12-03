@@ -58,6 +58,28 @@ export class TM_IO_Wrapper implements TrackmaniaIO{
             method: "GET",
             body: null
         }
+
+        //find maxPage
+        //it can happen that a page is empty even though the next page still has entries
+        //if three consecutive pages emtpty stop 
+        let found = false
+        let consecutive_empty = 0
+        while(!found){
+            await delay(8000) //delay to not get blocked by the api
+            let page = await this.getPage(this.maxPage)
+            console.log("currentPage: "+ page.page)
+            if(page.matches.length == 0){
+                consecutive_empty++
+            } else {
+                consecutive_empty = 0
+            }
+            if (consecutive_empty == 3){
+                found = true
+                this.maxPage = page.page - 4
+            }
+            this.maxPage++
+        }
+        console.log(this.maxPage)
     }
 
                 
@@ -85,7 +107,7 @@ export class TM_IO_Wrapper implements TrackmaniaIO{
         let result = [] as  entryJson[]
         for (let i = this.maxPage; i >= 0; i--){
             if (i != this.maxPage) {
-                await delay(60000)
+                await delay(60000) //delay between page request to not get blocked by the api
             }
             try {
                 let page = await this.getPage(i)
@@ -172,7 +194,7 @@ export class TM_IO_Wrapper implements TrackmaniaIO{
         result = []
         const matches = page.matches
         for(let i = matches.length - 1; i >= 0; i--) {
-            await delay(1000)
+            await delay(2000) //delay to not get blocked by the api
             let match: specMatchData
             try {
                 match = await this.getMatchInfo(matches[i].lid)
