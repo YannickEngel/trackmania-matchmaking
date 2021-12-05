@@ -1,6 +1,7 @@
 import { RowValues } from "exceljs";
 import {entryJson, specMatchData, pageRes, TrackmaniaIO} from './TrackmaniaIOInterface';
 import {Config, ConfigObject} from './Config/Config'
+import { convertToObject } from "typescript";
 
 
 const fetch = require('node-fetch')
@@ -11,7 +12,7 @@ export class TM_IO_Wrapper implements TrackmaniaIO{
 
     config: ConfigObject;
 
-    private maxPage: number = 0;
+    private maxPage: number;
     private headers
     private options
 
@@ -80,6 +81,7 @@ export class TM_IO_Wrapper implements TrackmaniaIO{
             this.maxPage++
         }
         console.log("Max Page: " + this.maxPage)
+        await delay(10000)
     }
 
                 
@@ -107,7 +109,7 @@ export class TM_IO_Wrapper implements TrackmaniaIO{
         let result = [] as  entryJson[]
         for (let i = this.maxPage; i >= 0; i--){
             if (i != this.maxPage) {
-                await delay(60000) //delay between page request to not get blocked by the api
+                await delay(90000) //delay between page request to not get blocked by the api
             }
             try {
                 let page = await this.getPage(i)
@@ -194,39 +196,37 @@ export class TM_IO_Wrapper implements TrackmaniaIO{
         result = []
         const matches = page.matches
         for(let i = matches.length - 1; i >= 0; i--) {
-            await delay(2000) //delay to not get blocked by the api
-            let match: specMatchData
-            try {
-                match = await this.getMatchInfo(matches[i].lid)
+
+            //TODO check if match is older than 7days 
+            //if so return undefined
+            let seven_days = 1000*60*60*24*7
+            if((new Date().valueOf() - new Date(matches[i].starttime).valueOf()) > seven_days){
+                console.log("no Fetch for match: " + matches[i].lid)
                 let entry = {
-                    date: undefined,
+                    date: matches[i].starttime,
                     map: undefined,
                     newTrophies: undefined,
-                    win: undefined,
-                    mvp:undefined,
+                    win: matches[i].win,
+                    mvp: matches[i].mvp,
                     teamPos: undefined,
-                    totalTrophies: undefined
-                }
-                if(match != undefined){
-                    entry = {
-                        date : matches[i].starttime,
-                        map : this.getMapNumber(match.maps[0].file),
-                        newTrophies :  match.players[this.getPositioninPlayers(match)].matchmakingpoints.after - match.players[this.getPositioninPlayers(match)].matchmakingpoints.before,
-                        win : matches[i].win,
-                        mvp : matches[i].mvp,
-                        teamPos : this.getTeamPos(match),
-                        totalTrophies : matches[i].afterscore
-                    }
-                } else {
-                    entry.date= matches[i].starttime,
-                    entry.win= matches[i].win,
-                    entry.mvp= matches[i].mvp,
-                    entry.totalTrophies= matches[i].afterscore
-                    
+                    totalTrophies: matches[i].afterscore
                 }
                 result.push(entry)
-            } catch (e) {
-                console.error({match: e.message})
+
+            } else {
+                await delay(4000) //delay to not get blocked by the api
+                let match: specMatchData
+                match = await this.getMatchInfo(matches[i].lid)
+                let entry = {
+                    date : matches[i].starttime,
+                    map : this.getMapNumber(match.maps[0].file),
+                    newTrophies :  match.players[this.getPositioninPlayers(match)].matchmakingpoints.after - match.players[this.getPositioninPlayers(match)].matchmakingpoints.before,
+                    win : matches[i].win,
+                    mvp : matches[i].mvp,
+                    teamPos : this.getTeamPos(match),
+                    totalTrophies : matches[i].afterscore
+                }
+                result.push(entry)
             }
         }
         return result
